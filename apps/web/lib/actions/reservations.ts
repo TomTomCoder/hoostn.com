@@ -523,6 +523,123 @@ export async function cancelReservation(
 }
 
 /**
+ * Create a new reservation
+ * @param input - Reservation creation data
+ * @param createPayment - Whether to create a payment intent (default: false)
+ * @param paymentMode - Payment capture mode (default: 'full')
+ */
+export async function createReservation(
+  input: {
+    lot_id: string;
+    guest_name: string;
+    guest_email: string;
+    guest_phone: string;
+    check_in: string;
+    check_out: string;
+    guests_count: number;
+    total_price: number;
+    channel?: string;
+    special_requests?: string;
+  },
+  createPayment: boolean = false,
+  paymentMode: 'full' | 'hold-72h' = 'full'
+): Promise<ActionResult<{ reservationId: string; paymentIntentId?: string; clientSecret?: string }>> {
+  try {
+    const auth = await getUserAndOrg();
+    if (!auth) {
+      return { success: false, error: 'Not authenticated' };
+    }
+
+    const supabase = await createClient();
+
+    // Validate lot belongs to org
+    const { data: lot, error: lotError } = await supabase
+      .from('lots')
+      .select('id, org_id')
+      .eq('id', input.lot_id)
+      .eq('org_id', auth.orgId)
+      .single();
+
+    if (lotError || !lot) {
+      return { success: false, error: 'Lot not found' };
+    }
+
+    // Check availability
+    const { data: conflicting } = await supabase
+      .from('reservations')
+      .select('id')
+      .eq('lot_id', input.lot_id)
+      .not('status', 'in', '(cancelled)')
+      .or(
+        `and(check_in.lte.${input.check_out},check_out.gte.${input.check_in})`
+      );
+
+    if (conflicting && conflicting.length > 0) {
+      return { success: false, error: 'Lot is not available for selected dates' };
+    }
+
+    // Create reservation
+    const { data: reservation, error: resError } = await supabase
+      .from('reservations')
+      .insert({
+        lot_id: input.lot_id,
+        org_id: auth.orgId,
+        guest_name: input.guest_name,
+        guest_email: input.guest_email,
+        guest_phone: input.guest_phone,
+        check_in: input.check_in,
+        check_out: input.check_out,
+        guests_count: input.guests_count,
+        total_price: input.total_price,
+        channel: input.channel || 'direct',
+        status: 'pending',
+        payment_status: 'pending',
+        payment_mode: paymentMode,
+      })
+      .select()
+      .single();
+
+    if (resError || !reservation) {
+      console.error('Failed to create reservation:', resError);
+      return { success: false, error: 'Failed to create reservation' };
+    }
+
+    // Create payment intent if requested
+    let paymentIntentId: string | undefined;
+    let clientSecret: string | undefined;
+
+    if (createPayment) {
+      // Import here to avoid circular dependency
+      const { createBookingPayment } = await import('./stripe-payments');
+      const paymentResult = await createBookingPayment(reservation.id, paymentMode);
+
+      if (!paymentResult.success) {
+        // Rollback reservation
+        await supabase.from('reservations').delete().eq('id', reservation.id);
+        return { success: false, error: paymentResult.error || 'Failed to create payment' };
+      }
+
+      paymentIntentId = paymentResult.data.paymentIntentId;
+      clientSecret = paymentResult.data.clientSecret;
+    }
+
+    revalidatePath('/dashboard/reservations');
+
+    return {
+      success: true,
+      data: {
+        reservationId: reservation.id,
+        paymentIntentId,
+        clientSecret,
+      },
+    };
+  } catch (error) {
+    console.error('Unexpected error creating reservation:', error);
+    return { success: false, error: 'An unexpected error occurred' };
+  }
+}
+
+/**
  * Get properties and lots for filters
  */
 export async function getPropertiesForFilter(): Promise<

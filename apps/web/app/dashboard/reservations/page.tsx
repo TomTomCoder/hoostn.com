@@ -1,40 +1,42 @@
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { Suspense } from 'react';
+import { Metadata } from 'next';
+import { ReservationsContent } from './ReservationsContent';
 
-export default function ReservationsPage() {
+export const metadata: Metadata = {
+  title: 'Reservations | Hoostn',
+  description: 'Manage your property reservations',
+};
+
+interface PageProps {
+  searchParams: {
+    view?: 'list' | 'calendar';
+    status?: string;
+    paymentStatus?: string;
+    search?: string;
+    dateFrom?: string;
+    dateTo?: string;
+    propertyId?: string;
+    lotId?: string;
+  };
+}
+
+export default async function ReservationsPage({ searchParams }: PageProps) {
+  const view = searchParams.view || 'list';
+  const filters = {
+    status: searchParams.status,
+    paymentStatus: searchParams.paymentStatus,
+    search: searchParams.search,
+    dateFrom: searchParams.dateFrom,
+    dateTo: searchParams.dateTo,
+    propertyId: searchParams.propertyId,
+    lotId: searchParams.lotId,
+  };
+
   return (
-    <div className="max-w-7xl mx-auto">
-      <div className="mb-6">
-        <h2 className="text-3xl font-bold text-gray-anthracite">Reservations</h2>
-        <p className="text-gray-600 mt-1">Manage your property reservations</p>
-      </div>
-
-      <Card>
-        <CardContent className="text-center py-12">
-          <div className="max-w-md mx-auto">
-            <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <svg
-                className="w-8 h-8 text-gray-400"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
-                />
-              </svg>
-            </div>
-            <h3 className="text-xl font-bold text-gray-anthracite mb-2">
-              Reservations page coming soon
-            </h3>
-            <p className="text-gray-600">
-              This page will allow you to view and manage all your property reservations.
-            </p>
-          </div>
-        </CardContent>
-      </Card>
+    <div className="max-w-7xl mx-auto space-y-6">
+      <Suspense fallback={<div>Loading...</div>}>
+        <ReservationsContent view={view} filters={filters} />
+      </Suspense>
     </div>
   );
 }

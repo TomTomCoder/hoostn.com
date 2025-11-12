@@ -1,11 +1,24 @@
 import { Metadata } from 'next';
 import { notFound } from 'next/navigation';
-import Link from 'next/link';
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { AmenitiesList } from '@/components/lots/amenities-list';
-import { PricingDisplay } from '@/components/lots/pricing-display';
-import { AvailabilityCalendar } from '@/components/lots/availability-calendar';
+import {
+  MapPin,
+  Bed,
+  Bath,
+  Users,
+  PawPrint,
+  Star,
+  DollarSign,
+  Wifi,
+  Tv,
+  Wind,
+  UtensilsCrossed,
+  Droplet,
+  TreePine,
+} from 'lucide-react';
+import { getPublicLotById } from '@/lib/actions/availability';
+import { PublicLotGallery } from '@/components/lots/PublicLotGallery';
+import { BookingWidget } from '@/components/booking/BookingWidget';
+import type { AmenityCategory } from '@/types/amenity';
 
 interface PageProps {
   params: {
@@ -13,342 +26,369 @@ interface PageProps {
   };
 }
 
-// This will be replaced once Agent 2 creates the public lot action
-async function getPublicLotById(lotId: string) {
-  // Temporary mock - Agent 2 will create the actual action
-  try {
-    const { getPublicLotWithDetails } = await import('@/lib/actions/lots');
-    return await getPublicLotWithDetails(lotId);
-  } catch (error) {
-    // If the action doesn't exist yet, return a mock error
-    return {
-      success: false,
-      error: 'Public lot actions not yet implemented by Agent 2',
-    };
-  }
-}
+// Category icons mapping
+const categoryIcons: Record<AmenityCategory, any> = {
+  essential: Wifi,
+  kitchen: UtensilsCrossed,
+  bathroom: Droplet,
+  entertainment: Tv,
+  outdoor: TreePine,
+};
+
+// Category display names
+const categoryNames: Record<AmenityCategory, string> = {
+  essential: 'Essentials',
+  kitchen: 'Kitchen & Dining',
+  bathroom: 'Bathroom',
+  entertainment: 'Entertainment',
+  outdoor: 'Outdoor',
+};
 
 export async function generateMetadata({
   params,
 }: PageProps): Promise<Metadata> {
-  const result = await getPublicLotById(params.lotId);
+  const lotResult = await getPublicLotById(params.lotId);
 
-  if (!result.success) {
+  if (!lotResult.success) {
     return {
       title: 'Lot Not Found | Hoostn',
     };
   }
 
+  const { data: lot } = lotResult;
+
   return {
-    title: `${result.data.title} | Hoostn`,
-    description: result.data.description || `Book ${result.data.title}`,
+    title: `${lot.title} - ${lot.property.name} | Hoostn`,
+    description:
+      lot.description ||
+      `Book ${lot.title} in ${lot.property.city}, ${lot.property.state}. ${lot.bedrooms} bedroom${lot.bedrooms > 1 ? 's' : ''}, ${lot.bathrooms} bathroom${lot.bathrooms > 1 ? 's' : ''}, sleeps ${lot.max_guests}.`,
+    openGraph: {
+      title: lot.title,
+      description: lot.description || undefined,
+      images: lot.primary_image_path
+        ? [
+            {
+              url: `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/lot-images/${lot.primary_image_path}`,
+              width: 1200,
+              height: 630,
+              alt: lot.title,
+            },
+          ]
+        : [],
+    },
   };
 }
 
-export default async function PublicLotPage({ params }: PageProps) {
-  const result = await getPublicLotById(params.lotId);
+export default async function PublicLotDetailPage({ params }: PageProps) {
+  // Fetch lot with all details
+  const lotResult = await getPublicLotById(params.lotId);
 
   // Handle not found
-  if (!result.success) {
+  if (!lotResult.success) {
     notFound();
   }
 
-  const lotData = result.data;
+  const lot = lotResult.data;
 
-  // Extract lot details
-  const lot = {
-    id: lotData.id,
-    property_id: lotData.property_id,
-    title: lotData.title,
-    description: lotData.description,
-    bedrooms: lotData.bedrooms,
-    bathrooms: lotData.bathrooms,
-    max_guests: lotData.max_guests,
-    base_price: lotData.base_price,
-    cleaning_fee: lotData.cleaning_fee,
-    tourist_tax: lotData.tourist_tax,
-    pets_allowed: lotData.pets_allowed,
-    status: lotData.status,
-  };
-
-  const property = lotData.property || {
-    id: lotData.property_id,
-    name: 'Property',
-    address: '',
-    city: '',
-  };
-
-  const images = lotData.lot_images || [];
-  const lotAmenities = lotData.lot_amenities || [];
-  const pricingSeasons = lotData.pricing_seasons || [];
-  const availabilityRules = lotData.availability_rules || [];
-
-  // Sort images by display order
-  const sortedImages = [...images].sort((a: any, b: any) => a.display_order - b.display_order);
-  const primaryImage = sortedImages.find((img: any) => img.is_primary) || sortedImages[0];
+  // Group amenities by category
+  const amenitiesByCategory = lot.amenities.reduce(
+    (acc, lotAmenity) => {
+      const category = lotAmenity.amenity.category as AmenityCategory;
+      if (!acc[category]) {
+        acc[category] = [];
+      }
+      acc[category].push(lotAmenity);
+      return acc;
+    },
+    {} as Record<AmenityCategory, typeof lot.amenities>
+  );
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <Link href="/" className="text-2xl font-bold text-primary">
-            Hoostn
-          </Link>
+      {/* Gallery Section */}
+      <div className="bg-white">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+          <PublicLotGallery images={lot.images} lotTitle={lot.title} />
         </div>
-      </header>
+      </div>
 
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Left Column - Main Content */}
-          <div className="lg:col-span-2 space-y-6">
-            {/* Image Gallery */}
-            {sortedImages.length > 0 && (
-              <Card>
-                <CardContent className="p-0">
-                  {/* Main Image */}
-                  <div className="relative w-full h-96 bg-gray-200 rounded-t-lg overflow-hidden">
-                    <img
-                      src={`/api/images/${primaryImage.storage_path}`}
-                      alt={lot.title}
-                      className="w-full h-full object-cover"
-                    />
-                    {sortedImages.length > 1 && (
-                      <div className="absolute bottom-4 right-4 bg-black/60 text-white px-3 py-1 rounded-full text-sm">
-                        {sortedImages.length} photo{sortedImages.length !== 1 ? 's' : ''}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Thumbnail Gallery */}
-                  {sortedImages.length > 1 && (
-                    <div className="p-4">
-                      <div className="grid grid-cols-4 sm:grid-cols-6 gap-2">
-                        {sortedImages.slice(0, 6).map((image: any) => (
-                          <div
-                            key={image.id}
-                            className="relative aspect-square rounded-lg overflow-hidden border-2 border-transparent"
-                          >
-                            <img
-                              src={`/api/images/${image.storage_path}`}
-                              alt={image.filename}
-                              className="w-full h-full object-cover"
-                            />
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Title and Basic Info */}
+          <div className="lg:col-span-2 space-y-8">
+            {/* Header */}
             <div>
-              <h1 className="text-4xl font-bold text-gray-anthracite mb-4">
+              <h1 className="text-3xl font-bold text-gray-900 mb-2">
                 {lot.title}
               </h1>
 
-              {/* Quick Stats */}
-              <div className="flex items-center gap-6 text-gray-600 flex-wrap mb-4">
-                {lot.bedrooms > 0 && (
-                  <div className="flex items-center">
-                    <svg
-                      className="w-5 h-5 mr-2"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"
-                      />
-                    </svg>
-                    <span>{lot.bedrooms} bedroom{lot.bedrooms !== 1 ? 's' : ''}</span>
-                  </div>
-                )}
-                {lot.bathrooms > 0 && (
-                  <div className="flex items-center">
-                    <svg
-                      className="w-5 h-5 mr-2"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M8 14v3m4-3v3m4-3v3M3 21h18M3 10h18M3 7l9-4 9 4M4 10h16v11H4V10z"
-                      />
-                    </svg>
-                    <span>{lot.bathrooms} bathroom{lot.bathrooms !== 1 ? 's' : ''}</span>
-                  </div>
-                )}
-                <div className="flex items-center">
-                  <svg
-                    className="w-5 h-5 mr-2"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"
-                    />
-                  </svg>
-                  <span>Up to {lot.max_guests} guest{lot.max_guests !== 1 ? 's' : ''}</span>
+              {/* Property Info */}
+              <div className="flex items-center gap-4 text-gray-600 mb-4">
+                <div className="flex items-center gap-1">
+                  <Bed className="h-4 w-4" />
+                  <span className="text-sm">
+                    {lot.bedrooms} {lot.bedrooms === 1 ? 'bedroom' : 'bedrooms'}
+                  </span>
+                </div>
+                <span className="text-gray-300">·</span>
+                <div className="flex items-center gap-1">
+                  <Bath className="h-4 w-4" />
+                  <span className="text-sm">
+                    {lot.bathrooms} {lot.bathrooms === 1 ? 'bath' : 'baths'}
+                  </span>
+                </div>
+                <span className="text-gray-300">·</span>
+                <div className="flex items-center gap-1">
+                  <Users className="h-4 w-4" />
+                  <span className="text-sm">Up to {lot.max_guests} guests</span>
                 </div>
                 {lot.pets_allowed && (
-                  <div className="flex items-center text-accent">
-                    <svg
-                      className="w-5 h-5 mr-2"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M5 13l4 4L19 7"
-                      />
-                    </svg>
-                    <span>Pets allowed</span>
-                  </div>
+                  <>
+                    <span className="text-gray-300">·</span>
+                    <div className="flex items-center gap-1 text-green-600">
+                      <PawPrint className="h-4 w-4" />
+                      <span className="text-sm">Pet friendly</span>
+                    </div>
+                  </>
                 )}
               </div>
 
-              {/* Property Info */}
-              <div className="flex items-start text-gray-600 mb-6">
-                <svg
-                  className="w-5 h-5 mr-2 flex-shrink-0 mt-0.5"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
-                  />
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
-                  />
-                </svg>
-                <span>
-                  {property.name}
-                  {property.address && property.city && (
-                    <> - {property.address}, {property.city}</>
-                  )}
-                </span>
+              {/* Location */}
+              <div className="flex items-start gap-2 text-gray-700">
+                <MapPin className="h-5 w-5 flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-medium">{lot.property.name}</p>
+                  <p className="text-sm">
+                    {lot.property.address}, {lot.property.city},{' '}
+                    {lot.property.state} {lot.property.zip_code}
+                  </p>
+                </div>
               </div>
             </div>
+
+            <hr className="border-gray-200" />
 
             {/* Description */}
             {lot.description && (
-              <Card>
-                <CardHeader>
-                  <CardTitle>About this space</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-gray-600 whitespace-pre-wrap">
-                    {lot.description}
-                  </p>
-                </CardContent>
-              </Card>
+              <div>
+                <h2 className="text-2xl font-semibold text-gray-900 mb-4">
+                  About this space
+                </h2>
+                <p className="text-gray-700 whitespace-pre-line leading-relaxed">
+                  {lot.description}
+                </p>
+              </div>
             )}
 
+            <hr className="border-gray-200" />
+
             {/* Amenities */}
-            <Card>
-              <CardHeader>
-                <CardTitle>What this place offers</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <AmenitiesList lotAmenities={lotAmenities} expandedByDefault={true} />
-              </CardContent>
-            </Card>
+            {Object.keys(amenitiesByCategory).length > 0 && (
+              <div>
+                <h2 className="text-2xl font-semibold text-gray-900 mb-6">
+                  What this place offers
+                </h2>
 
-            {/* Availability */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Availability</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <AvailabilityCalendar
-                  availabilityRules={availabilityRules}
-                  readOnly={true}
-                />
-              </CardContent>
-            </Card>
-          </div>
+                <div className="space-y-6">
+                  {(Object.entries(amenitiesByCategory) as [AmenityCategory, typeof lot.amenities][]).map(
+                    ([category, amenities]) => {
+                      const Icon = categoryIcons[category];
+                      return (
+                        <div key={category}>
+                          <div className="flex items-center gap-2 mb-3">
+                            <Icon className="h-5 w-5 text-gray-700" />
+                            <h3 className="font-semibold text-gray-900">
+                              {categoryNames[category]}
+                            </h3>
+                          </div>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 ml-7">
+                            {amenities.map((lotAmenity) => (
+                              <div
+                                key={lotAmenity.id}
+                                className="flex items-start gap-2"
+                              >
+                                <div className="flex-1">
+                                  <p className="text-gray-700">
+                                    {lotAmenity.amenity.name}
+                                    {lotAmenity.quantity > 1 && (
+                                      <span className="text-gray-500 text-sm ml-1">
+                                        × {lotAmenity.quantity}
+                                      </span>
+                                    )}
+                                  </p>
+                                  {lotAmenity.notes && (
+                                    <p className="text-sm text-gray-500">
+                                      {lotAmenity.notes}
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    }
+                  )}
+                </div>
+              </div>
+            )}
 
-          {/* Right Column - Booking Card */}
-          <div className="lg:col-span-1">
-            <div className="sticky top-8">
-              <Card className="shadow-lg">
-                <CardContent className="p-6">
-                  <PricingDisplay
-                    basePrice={lot.base_price}
-                    cleaningFee={lot.cleaning_fee}
-                    touristTax={lot.tourist_tax}
-                    pricingSeasons={pricingSeasons}
-                  />
+            <hr className="border-gray-200" />
 
-                  <div className="mt-6">
-                    <Button
-                      variant="primary"
-                      size="lg"
-                      className="w-full"
-                      disabled={lot.status !== 'active'}
-                    >
-                      <svg
-                        className="w-5 h-5 mr-2"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
-                        />
-                      </svg>
-                      Book Now
-                    </Button>
-                    {lot.status !== 'active' && (
-                      <p className="text-sm text-gray-500 text-center mt-2">
-                        This lot is currently not available for booking
-                      </p>
-                    )}
+            {/* Pricing Info */}
+            <div>
+              <h2 className="text-2xl font-semibold text-gray-900 mb-4">
+                Pricing
+              </h2>
+              <div className="bg-gray-50 rounded-lg p-6 space-y-3">
+                {lot.base_price !== null && (
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Base price per night</span>
+                    <span className="font-semibold">${lot.base_price}</span>
                   </div>
-                </CardContent>
-              </Card>
+                )}
+                {lot.cleaning_fee > 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Cleaning fee</span>
+                    <span className="font-semibold">${lot.cleaning_fee}</span>
+                  </div>
+                )}
+                {lot.tourist_tax > 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">
+                      Tourist tax (per guest per night)
+                    </span>
+                    <span className="font-semibold">${lot.tourist_tax}</span>
+                  </div>
+                )}
+
+                {/* Seasonal Pricing */}
+                {lot.pricing_seasons.length > 0 && (
+                  <div className="mt-4 pt-4 border-t border-gray-200">
+                    <p className="text-sm font-medium text-gray-900 mb-2">
+                      Seasonal pricing available:
+                    </p>
+                    <div className="space-y-2">
+                      {lot.pricing_seasons.map((season) => (
+                        <div
+                          key={season.id}
+                          className="flex justify-between text-sm"
+                        >
+                          <span className="text-gray-600">{season.name}</span>
+                          <span className="text-gray-900">
+                            ${season.price_per_night}/night
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <hr className="border-gray-200" />
+
+            {/* House Rules */}
+            <div>
+              <h2 className="text-2xl font-semibold text-gray-900 mb-4">
+                House rules
+              </h2>
+              <div className="space-y-2 text-gray-700">
+                <p>• Check-in: After 3:00 PM</p>
+                <p>• Check-out: Before 11:00 AM</p>
+                {lot.pets_allowed ? (
+                  <p>• Pets allowed</p>
+                ) : (
+                  <p>• No pets allowed</p>
+                )}
+                <p>• No smoking</p>
+                <p>• No parties or events</p>
+              </div>
+            </div>
+
+            <hr className="border-gray-200" />
+
+            {/* Location Map */}
+            {lot.property.latitude && lot.property.longitude && (
+              <div>
+                <h2 className="text-2xl font-semibold text-gray-900 mb-4">
+                  Location
+                </h2>
+                <div className="bg-gray-100 rounded-lg h-96 flex items-center justify-center">
+                  <div className="text-center text-gray-500">
+                    <MapPin className="h-12 w-12 mx-auto mb-2" />
+                    <p>Map integration coming soon</p>
+                    <p className="text-sm mt-1">
+                      {lot.property.city}, {lot.property.state}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <hr className="border-gray-200" />
+
+            {/* Reviews Placeholder */}
+            <div>
+              <h2 className="text-2xl font-semibold text-gray-900 mb-4">
+                Guest reviews
+              </h2>
+              <div className="bg-gray-50 rounded-lg p-8 text-center">
+                <Star className="h-12 w-12 text-gray-300 mx-auto mb-2" />
+                <p className="text-gray-500">No reviews yet</p>
+                <p className="text-sm text-gray-400 mt-1">
+                  Be the first to review this property
+                </p>
+              </div>
             </div>
           </div>
-        </div>
-      </main>
 
-      {/* Footer */}
-      <footer className="bg-gray-anthracite text-white mt-16">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <div className="text-center">
-            <p className="text-sm">
-              &copy; {new Date().getFullYear()} Hoostn. All rights reserved.
-            </p>
+          {/* Right Column - Booking Widget (Sticky) */}
+          <div className="lg:col-span-1">
+            <BookingWidget
+              lotId={lot.id}
+              basePrice={lot.base_price}
+              cleaningFee={lot.cleaning_fee}
+              maxGuests={lot.max_guests}
+            />
           </div>
         </div>
-      </footer>
+      </div>
+
+      {/* Structured Data for SEO */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify({
+            '@context': 'https://schema.org',
+            '@type': 'LodgingBusiness',
+            name: lot.title,
+            description: lot.description,
+            address: {
+              '@type': 'PostalAddress',
+              streetAddress: lot.property.address,
+              addressLocality: lot.property.city,
+              addressRegion: lot.property.state,
+              postalCode: lot.property.zip_code,
+              addressCountry: lot.property.country,
+            },
+            numberOfRooms: lot.bedrooms,
+            petsAllowed: lot.pets_allowed,
+            ...(lot.base_price !== null && {
+              priceRange: `$${lot.base_price}`,
+            }),
+            ...(lot.property.latitude &&
+              lot.property.longitude && {
+                geo: {
+                  '@type': 'GeoCoordinates',
+                  latitude: lot.property.latitude,
+                  longitude: lot.property.longitude,
+                },
+              }),
+          }),
+        }}
+      />
     </div>
   );
 }

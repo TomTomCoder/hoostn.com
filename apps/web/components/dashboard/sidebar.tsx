@@ -3,19 +3,26 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { clsx } from 'clsx';
+import {
+  LayoutDashboard,
+  Home,
+  Calendar as CalendarIcon,
+  CalendarCheck,
+  Settings,
+} from 'lucide-react';
 
 interface NavItem {
   name: string;
   href: string;
-  icon?: string;
+  icon: React.ComponentType<{ className?: string }>;
 }
 
 const navigation: NavItem[] = [
-  { name: 'Dashboard', href: '/dashboard' },
-  { name: 'Properties', href: '/dashboard/properties' },
-  { name: 'Calendar', href: '/dashboard/calendar' },
-  { name: 'Reservations', href: '/dashboard/reservations' },
-  { name: 'Settings', href: '/dashboard/settings' },
+  { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
+  { name: 'Properties', href: '/dashboard/properties', icon: Home },
+  { name: 'Calendar', href: '/dashboard/calendar', icon: CalendarIcon },
+  { name: 'Reservations', href: '/dashboard/reservations', icon: CalendarCheck },
+  { name: 'Settings', href: '/dashboard/settings', icon: Settings },
 ];
 
 export function Sidebar() {
@@ -38,18 +45,20 @@ export function Sidebar() {
         {navigation.map((item) => {
           const isActive = pathname === item.href ||
             (item.href !== '/dashboard' && pathname?.startsWith(item.href));
+          const Icon = item.icon;
 
           return (
             <Link
               key={item.name}
               href={item.href}
               className={clsx(
-                'block px-4 py-3 rounded-lg text-sm font-medium transition-colors',
+                'flex items-center px-4 py-3 rounded-lg text-sm font-medium transition-colors',
                 isActive
                   ? 'bg-gray-800 text-white'
                   : 'text-gray-300 hover:bg-gray-800 hover:text-white'
               )}
             >
+              <Icon className="w-5 h-5 mr-3" />
               {item.name}
             </Link>
           );

@@ -9,6 +9,12 @@
       "maxDuration": 30
     }
   },
+  "crons": [
+    {
+      "path": "/api/cron/ota-sync",
+      "schedule": "*/30 * * * *"
+    }
+  ],
   "headers": [
     {
       "source": "/api/(.*)",

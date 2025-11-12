@@ -1,40 +1,90 @@
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { Suspense } from 'react';
+import { Metadata } from 'next';
+import { getPropertiesWithLots, getPropertyCities } from '@/lib/actions/properties';
+import { PropertiesHeader } from '@/components/properties/properties-header';
+import { PropertiesList } from '@/components/properties/properties-list';
+import { PropertiesLoading } from '@/components/properties/properties-loading';
 
-export default function PropertiesPage() {
+export const metadata: Metadata = {
+  title: 'Properties | Hoostn',
+  description: 'Manage your rental properties',
+};
+
+interface PageProps {
+  searchParams: {
+    view?: 'grid' | 'list';
+    search?: string;
+    city?: string;
+  };
+}
+
+export default async function PropertiesPage({ searchParams }: PageProps) {
+  const view = searchParams.view || 'grid';
+  const search = searchParams.search;
+  const city = searchParams.city;
+
+  // Fetch properties with filters
+  const propertiesResult = await getPropertiesWithLots({
+    search,
+    city,
+  });
+
+  // Fetch available cities for filter
+  const citiesResult = await getPropertyCities();
+
+  // Handle error state
+  if (!propertiesResult.success) {
+    return (
+      <div className="max-w-7xl mx-auto">
+        <div className="mb-6">
+          <h1 className="text-3xl font-bold text-gray-anthracite">
+            Properties
+          </h1>
+          <p className="text-gray-600 mt-1">Manage your rental properties</p>
+        </div>
+        <div className="bg-red-50 border border-red-200 rounded-lg p-6">
+          <div className="flex items-start">
+            <svg
+              className="w-6 h-6 text-error mr-3 flex-shrink-0 mt-0.5"
+              fill="currentColor"
+              viewBox="0 0 20 20"
+            >
+              <path
+                fillRule="evenodd"
+                d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
+                clipRule="evenodd"
+              />
+            </svg>
+            <div>
+              <h3 className="text-lg font-semibold text-error mb-1">
+                Error loading properties
+              </h3>
+              <p className="text-sm text-gray-600">{propertiesResult.error}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const propertiesList = propertiesResult.data;
+  const cities = citiesResult.success ? citiesResult.data : [];
+  const hasFilters = Boolean(search || city);
+
   return (
     <div className="max-w-7xl mx-auto">
-      <div className="mb-6">
-        <h2 className="text-3xl font-bold text-gray-anthracite">Properties</h2>
-        <p className="text-gray-600 mt-1">Manage your rental properties</p>
-      </div>
+      <PropertiesHeader
+        propertyCount={propertiesList.length}
+        cities={cities}
+      />
 
-      <Card>
-        <CardContent className="text-center py-12">
-          <div className="max-w-md mx-auto">
-            <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <svg
-                className="w-8 h-8 text-gray-400"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"
-                />
-              </svg>
-            </div>
-            <h3 className="text-xl font-bold text-gray-anthracite mb-2">
-              Properties page coming soon
-            </h3>
-            <p className="text-gray-600">
-              This page will allow you to manage all your rental properties.
-            </p>
-          </div>
-        </CardContent>
-      </Card>
+      <Suspense fallback={<PropertiesLoading view={view} />}>
+        <PropertiesList
+          properties={propertiesList}
+          view={view}
+          hasFilters={hasFilters}
+        />
+      </Suspense>
     </div>
   );
 }

@@ -1,0 +1,45 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --color-primary: #1f3a8a;
+    --color-accent: #00c48c;
+    --color-gray-anthracite: #333333;
+    --color-gray-light: #f5f6f8;
+    --color-error: #e53e3e;
+    --radius-xl: 16px;
+  }
+
+  * {
+    @apply border-gray-300;
+  }
+
+  body {
+    @apply bg-white text-gray-anthracite;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    @apply font-bold;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply rounded-2xl bg-primary px-6 py-3 text-white hover:bg-primary-dark transition-colors;
+  }
+
+  .btn-accent {
+    @apply rounded-2xl bg-accent px-6 py-3 text-white hover:bg-accent-dark transition-colors;
+  }
+
+  .card {
+    @apply rounded-2xl bg-white p-6 shadow-sm;
+  }
+}

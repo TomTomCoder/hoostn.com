@@ -1,0 +1,10 @@
+{
+  "name": "@hoostn/config",
+  "version": "1.0.0",
+  "private": true,
+  "main": "./constants.ts",
+  "types": "./constants.ts",
+  "scripts": {
+    "type-check": "tsc --noEmit"
+  }
+}
